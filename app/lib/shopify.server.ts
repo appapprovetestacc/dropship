@@ -187,6 +187,51 @@ export function nonce(): string {
     .join("");
 }
 
+export async function signedState(input: { shop: string; apiSecret: string; ttlSeconds?: number }): Promise<string> {
+  const ttl = input.ttlSeconds ?? 600;
+  const nonceHex = nonce();
+  const expiry = Math.floor(Date.now() / 1000) + ttl;
+  const payload = `${input.shop}|${nonceHex}|${expiry}`;
+  const sig = await hmacHex(payload, input.apiSecret);
+  return base64UrlEncode(`${payload}|${sig}`);
+}
+
+export async function verifySignedState(input: { state: string; expectedShop: string; apiSecret: string }): Promise<{ ok: true } | { ok: false; reason: string }> {
+  let decoded: string;
+  try { decoded = base64UrlDecodeToString(input.state); } catch { return { ok: false, reason: "state-not-base64url" }; }
+  const parts = decoded.split("|");
+  if (parts.length !== 4) return { ok: false, reason: "state-malformed" };
+  const [shop, nonceHex, expiryStr, sig] = parts as [string, string, string, string];
+  if (shop !== input.expectedShop) return { ok: false, reason: "state-shop-mismatch" };
+  const expiry = Number.parseInt(expiryStr, 10);
+  if (!Number.isFinite(expiry)) return { ok: false, reason: "state-expiry-malformed" };
+  if (Math.floor(Date.now() / 1000) > expiry) return { ok: false, reason: "state-expired" };
+  const payload = `${shop}|${nonceHex}|${expiryStr}`;
+  const expected = await hmacHex(payload, input.apiSecret);
+  if (expected.length !== sig.length) return { ok: false, reason: "state-sig-length-mismatch" };
+  let mismatch = 0;
+  for (let i = 0; i < expected.length; i++) mismatch |= expected.charCodeAt(i) ^ sig.charCodeAt(i);
+  if (mismatch !== 0) return { ok: false, reason: "state-sig-mismatch" };
+  return { ok: true };
+}
+
+async function hmacHex(data: string, secret: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sigBytes = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(data)));
+  return Array.from(sigBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function base64UrlEncode(s: string): string {
+  const bin = btoa(unescape(encodeURIComponent(s)));
+  return bin.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function base64UrlDecodeToString(s: string): string {
+  const padded = s.replace(/-/g, "+").replace(/_/g, "/").padEnd(s.length + ((4 - (s.length % 4)) % 4), "=");
+  return decodeURIComponent(escape(atob(padded)));
+}
+
 // ─── Authenticate API ──────────────────────────────────────────────
 //
 // Higher-level facade over the primitives above. Matches the shape

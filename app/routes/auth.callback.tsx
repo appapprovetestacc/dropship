@@ -1,6 +1,5 @@
 import {
   type LoaderFunctionArgs,
-  redirect,
 } from "@remix-run/cloudflare";
 import type { Env } from "../../load-context";
 import {
@@ -8,6 +7,7 @@ import {
   isValidShop,
   shopifyApi,
   verifyOAuthHmac,
+  verifySignedState,
 } from "~/lib/shopify.server";
 import { saveOfflineSession } from "~/lib/session-storage.server";
 import { getOrSetFirstInstallAt } from "~/lib/trial.server";
@@ -26,11 +26,11 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   if (!(await verifyOAuthHmac(url.searchParams, api.apiSecret))) {
     return new Response("HMAC mismatch", { status: 401 });
   }
-  // State cookie check
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  const expectedState = cookieHeader.match(/shopify_oauth_state=([^;]+)/)?.[1];
-  if (!expectedState || expectedState !== state) {
-    return new Response("State mismatch", { status: 401 });
+  // Stateless signed-state check (replaces SameSite=Lax cookie which
+  // Chromium 120+ drops on cross-site callback redirects).
+  const stateCheck = await verifySignedState({ state, expectedShop: shop, apiSecret: api.apiSecret });
+  if (!stateCheck.ok) {
+    return new Response(`State mismatch: ${stateCheck.reason}`, { status: 401 });
   }
 
   const token = await exchangeCodeForOfflineToken({
@@ -64,12 +64,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 
   // Hand off to the embedded admin app.
   const target = `/?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(url.searchParams.get("host") ?? "")}`;
-  const headers = new Headers({
-    Location: target,
-    "Set-Cookie":
-      "shopify_oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
-  });
-  return new Response(null, { status: 302, headers });
+  return new Response(null, { status: 302, headers: { Location: target } });
 }
 
 export default function AuthCallback() {
