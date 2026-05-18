@@ -9,16 +9,20 @@ export const meta: MetaFunction = () => [
   },
 ];
 
-// F-NEW-V — Shopify install entry. When a merchant clicks "Add app"
+// F-NEW-V / F-NEW-AM — Shopify install entry. When a merchant clicks "Add app"
 // in the App Store, Shopify hits the root URL with ?shop=<store> and
 // ?hmac=<sig>. We must redirect to OAuth IMMEDIATELY — rendering HTML
 // first triggers "app must request install immediately when Add app
 // is clicked" reviewer rejection (shopify-check install-flow).
 // Visits without ?shop= still see the marketing index.
+// F-NEW-AM: gate on BOTH shop AND hmac — post-OAuth callback lands back at
+// /?shop=&host= (no hmac), and redirecting on shop-only caused an infinite
+// OAuth loop (Shopify reported oauth_error=same_site_cookies).
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
-  if (shop) {
+  const hmac = url.searchParams.get("hmac");
+  if (shop && hmac) {
     return redirect(`/auth?shop=${encodeURIComponent(shop)}`);
   }
   return null;
