@@ -2,58 +2,46 @@ import { redirect, type LoaderFunctionArgs, type MetaFunction } from "@remix-run
 
 export const meta: MetaFunction = () => [
   { title: "dropship" },
-  {
-    name: "description",
-    content:
-      "dropship is a Shopify App that runs inside your store's admin. Install via Shopify admin → Apps to enable it on your storefront.",
-  },
+  { name: "description", content: "Install dropship on your Shopify store." },
 ];
 
-// F-NEW-V / F-NEW-AM — Shopify install entry. When a merchant clicks "Add app"
-// in the App Store, Shopify hits the root URL with ?shop=<store> and
-// ?hmac=<sig>. We must redirect to OAuth IMMEDIATELY — rendering HTML
-// first triggers "app must request install immediately when Add app
-// is clicked" reviewer rejection (shopify-check install-flow).
-// Visits without ?shop= still see the marketing index.
-// F-NEW-AM: gate on BOTH shop AND hmac — post-OAuth callback lands back at
-// /?shop=&host= (no hmac), and redirecting on shop-only caused an infinite
-// OAuth loop (Shopify reported oauth_error=same_site_cookies).
+// F-NEW-V + F-NEW-AM + F-NEW-AP — three disjoint entries to /:
+//   (1) ?shop=&hmac=&host= → App Store first-install → /auth
+//   (2) ?host= (no hmac)   → embedded admin entry → /app
+//   (3) no params          → install gate (default component below)
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
   const hmac = url.searchParams.get("hmac");
+  const host = url.searchParams.get("host");
   if (shop && hmac) {
     return redirect(`/auth?shop=${encodeURIComponent(shop)}`);
+  }
+  if (host) {
+    const params = new URLSearchParams();
+    if (shop) params.set("shop", shop);
+    params.set("host", host);
+    return redirect(`/app?${params.toString()}`);
   }
   return null;
 }
 
+// F-NEW-AQ — clean install gate for direct-URL visitors. Replaces the
+// 4 H2 sections of dry merchant copy. Bare HTML (no Polaris) — runs
+// outside embedded admin context, no App Bridge.
 export default function Index() {
   return (
-    <main style={{ fontFamily: "system-ui", padding: "2rem", maxWidth: 720, lineHeight: 1.55 }}>
-      <h1 style={{ marginTop: 0 }}>dropship</h1>
-      <p>
-        dropship is a Shopify App. It runs inside your store's admin and
-        configures storefront features for your shoppers.
-      </p>
-      <h2 style={{ marginTop: "2rem", fontSize: "1.15rem" }}>Install</h2>
-      <p style={{ marginTop: "0.25rem" }}>
-        Open your Shopify admin → <strong>Apps</strong> → search for{" "}
-        <strong>dropship</strong>, or use the Add-app link your store
-        owner shared with you. After install you'll see dropship in the
-        Apps menu of your Shopify admin.
-      </p>
-      <h2 style={{ marginTop: "2rem", fontSize: "1.15rem" }}>Storefront surface</h2>
-      <p style={{ marginTop: "0.25rem" }}>
-        Once installed, dropship's storefront features render at{" "}
-        <code>https://&lt;your-store&gt;.myshopify.com/apps/dropship</code>{" "}
-        and as theme app embeds you can enable from the Shopify theme editor.
-      </p>
-      <h2 style={{ marginTop: "2rem", fontSize: "1.15rem" }}>Support</h2>
-      <p style={{ marginTop: "0.25rem" }}>
-        Reach out via your store's app listing or the email in your install
-        confirmation. We respond within one business day.
-      </p>
+    <main style={{ fontFamily: "system-ui, -apple-system, sans-serif", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "2rem", background: "linear-gradient(180deg, #fafafa 0%, #f0f0f0 100%)" }}>
+      <div style={{ maxWidth: 440, width: "100%", background: "#fff", padding: "2.5rem 2rem", borderRadius: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)" }}>
+        <h1 style={{ margin: "0 0 0.5rem", fontSize: "1.75rem", fontWeight: 600 }}>dropship</h1>
+        <p style={{ margin: "0 0 1.75rem", color: "#666", fontSize: "0.95rem", lineHeight: 1.5 }}>Install on your Shopify store to start using dropship.</p>
+        <form method="get" action="/auth" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <label htmlFor="shop" style={{ fontSize: "0.85rem", fontWeight: 500, color: "#333" }}>Your Shopify store URL</label>
+          <input id="shop" name="shop" type="text" pattern="[a-z0-9][a-z0-9-]*\.myshopify\.com" placeholder="your-store.myshopify.com" required autoFocus style={{ padding: "0.7rem 0.85rem", fontSize: "0.95rem", border: "1px solid #d0d0d0", borderRadius: 6, outline: "none", fontFamily: "inherit" }} />
+          <button type="submit" style={{ padding: "0.75rem", fontSize: "0.95rem", fontWeight: 500, color: "#fff", background: "#008060", border: 0, borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}>Install dropship</button>
+        </form>
+        <p style={{ margin: "1.5rem 0 0", fontSize: "0.8rem", color: "#999", textAlign: "center" }}>Already installed? Open from your Shopify admin → Apps.</p>
+      </div>
     </main>
   );
 }
