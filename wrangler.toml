@@ -43,6 +43,16 @@ directory = "./build/client"
 APPAPPROVE_PROJECT_SLUG = "dropship"
 SCOPES = "read_themes,write_themes,read_files,write_files,read_pages,write_pages"
 
+# D1 database binding for the page builder. AppApprove's deploy pipeline
+# detects the non-UUID `database_id` as a placeholder and auto-creates
+# the database on first deploy (Sprint 11I), then patches the real UUID
+# in. Do NOT commit a real UUID — it'd skip the auto-create on a
+# different account.
+[[d1_databases]]
+binding = "D1"
+database_name = "dropship-pagebuilder"
+database_id = "pending"
+
 # CF Cron Triggers — uncomment + add schedules here, then mirror them in
 # appapprove.config.ts `crons` so the dispatcher knows which handler to
 # call. AppApprove's deploy pipeline diffs the two and warns on drift.

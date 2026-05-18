@@ -10,7 +10,15 @@ export interface OfflineSession {
   shop: string;
   accessToken: string;
   scope: string;
-  storedAt: number;
+  storedAt?: number;
+  // Optional Shopify-SDK-compatible fields. The preview-mode bypass in
+  // shopify.server.ts builds a session with these so it shape-matches what
+  // the upstream @shopify/shopify-app-remix Session type exposes. Real
+  // production OfflineSession objects (from loadOfflineSession KV reads)
+  // only use the 4 core fields above.
+  id?: string;
+  state?: string;
+  isOnline?: boolean;
 }
 
 const memory = new Map<string, OfflineSession>();

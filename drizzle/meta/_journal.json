@@ -1,0 +1,11 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    { "idx": 0, "version": "6", "when": 1747526400000, "tag": "0000_pages", "breakpoints": true },
+    { "idx": 1, "version": "6", "when": 1747526401000, "tag": "0001_page_assets", "breakpoints": true },
+    { "idx": 2, "version": "6", "when": 1747526402000, "tag": "0002_page_revisions", "breakpoints": true },
+    { "idx": 3, "version": "6", "when": 1747526403000, "tag": "0003_shop_settings", "breakpoints": true },
+    { "idx": 4, "version": "6", "when": 1747526404000, "tag": "0004_migrations_log", "breakpoints": true }
+  ]
+}
